@@ -63,7 +63,7 @@ pub struct TypeCounts {
 }
 
 impl TypeCounts {
-    fn record(&mut self, type_name: &'static str) {
+    pub(crate) fn record(&mut self, type_name: &'static str) {
         match self.counts.iter_mut().find(|(t, _)| *t == type_name) {
             Some(entry) => entry.1 += 1,
             None => self.counts.push((type_name, 1)),
