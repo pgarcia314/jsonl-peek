@@ -6,6 +6,8 @@
 use std::path::PathBuf;
 use std::process::{Command, Output};
 
+use jsonl_peek::json::{parse, Value};
+
 fn fixture_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sample.jsonl")
 }
@@ -90,6 +92,94 @@ fn stats_reports_counts_and_field_distributions() {
 
     assert!(text.contains("invalid lines (1 total, showing 1)"));
     assert!(text.contains("line 5 col 9: expected a quoted object key"));
+}
+
+#[test]
+fn stats_json_output_matches_the_text_report() {
+    let path = fixture_path();
+    let output = run(&[
+        "stats",
+        "--field",
+        "meta.source",
+        "--field",
+        "messages[].role",
+        "--json",
+        path.to_str().unwrap(),
+    ]);
+    assert!(output.status.success());
+    let text = stdout(&output);
+    assert_eq!(text.lines().count(), 1, "--json must print exactly one line");
+
+    let v = parse(text.trim_end()).expect("--json output must be valid JSON");
+    assert_eq!(v.get("lines").and_then(Value::as_i64), Some(5));
+    assert_eq!(v.get("blank").and_then(Value::as_i64), Some(1));
+    assert_eq!(v.get("invalid").and_then(Value::as_i64), Some(1));
+    assert_eq!(v.get("valid").and_then(Value::as_i64), Some(3));
+    assert_eq!(v.get("issues_truncated"), Some(&Value::Bool(false)));
+
+    let top_level_types = v.get("top_level_types").expect("top_level_types missing");
+    assert_eq!(top_level_types.get("object").and_then(Value::as_i64), Some(3));
+
+    let fields = v.get("fields").and_then(Value::as_array).expect("fields must be an array");
+    assert_eq!(fields.len(), 2);
+
+    let source = &fields[0];
+    assert_eq!(source.get("path").and_then(Value::as_str), Some("meta.source"));
+    assert_eq!(source.get("records_present").and_then(Value::as_i64), Some(3));
+    assert_eq!(source.get("values").and_then(Value::as_i64), Some(3));
+    assert_eq!(
+        source.get("types").and_then(|t| t.get("string")).and_then(Value::as_i64),
+        Some(3)
+    );
+
+    let role = &fields[1];
+    assert_eq!(role.get("path").and_then(Value::as_str), Some("messages[].role"));
+    assert_eq!(role.get("values").and_then(Value::as_i64), Some(4));
+
+    let issues = v.get("issues").and_then(Value::as_array).expect("issues must be an array");
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0].get("line").and_then(Value::as_i64), Some(5));
+    assert_eq!(issues[0].get("column").and_then(Value::as_i64), Some(9));
+    assert_eq!(
+        issues[0].get("reason").and_then(Value::as_str),
+        Some("expected a quoted object key")
+    );
+}
+
+#[test]
+fn schema_json_output_matches_the_text_report() {
+    let path = fixture_path();
+    let output = run(&["schema", "--json", path.to_str().unwrap()]);
+    assert!(output.status.success());
+    let text = stdout(&output);
+    assert_eq!(text.lines().count(), 1, "--json must print exactly one line");
+
+    let v = parse(text.trim_end()).expect("--json output must be valid JSON");
+    assert_eq!(v.get("records").and_then(Value::as_i64), Some(3));
+    assert_eq!(v.get("skipped").and_then(Value::as_i64), Some(2));
+    assert_eq!(v.get("truncated"), Some(&Value::Bool(false)));
+
+    let paths = v.get("paths").and_then(Value::as_array).expect("paths must be an array");
+    let find_path = |name: &str| -> &Value {
+        paths
+            .iter()
+            .find(|p| p.get("path").and_then(Value::as_str) == Some(name))
+            .unwrap_or_else(|| panic!("path '{name}' not found in schema json:\n{text}"))
+    };
+
+    let role = find_path("messages[].role");
+    assert_eq!(role.get("rate").and_then(Value::as_f64), Some(1.0));
+    assert_eq!(
+        role.get("types").and_then(|t| t.get("string")).and_then(Value::as_i64),
+        Some(4)
+    );
+
+    let source = find_path("meta.source");
+    assert_eq!(source.get("rate").and_then(Value::as_f64), Some(1.0));
+    assert_eq!(
+        source.get("types").and_then(|t| t.get("string")).and_then(Value::as_i64),
+        Some(3)
+    );
 }
 
 #[test]
