@@ -258,3 +258,43 @@ fn unknown_subcommand_is_a_usage_error() {
     let stderr = String::from_utf8(output.stderr).unwrap();
     assert!(stderr.contains("unknown subcommand 'frobnicate'"));
 }
+
+#[test]
+fn a_flag_missing_its_value_is_a_usage_error() {
+    let output = run(&["head", "-n"]);
+    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("'-n' needs a value"));
+    assert!(stderr.contains("usage: jsonl-peek head"));
+}
+
+#[test]
+fn a_non_numeric_flag_value_is_a_usage_error() {
+    let output = run(&["head", "-n", "not-a-number"]);
+    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("'-n' expects a non-negative integer, got 'not-a-number'"));
+}
+
+#[test]
+fn an_unparseable_field_path_is_a_usage_error() {
+    let path = fixture_path();
+    let output = run(&["stats", "--field", "a[x]", path.to_str().unwrap()]);
+    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("--field a[x]:"));
+    assert!(stderr.contains("invalid index inside '[...]'"));
+}
+
+#[test]
+fn a_second_positional_argument_is_a_usage_error() {
+    let path = fixture_path();
+    let output = run(&["head", path.to_str().unwrap(), "extra"]);
+    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("unexpected argument 'extra'"));
+}
