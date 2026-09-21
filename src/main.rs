@@ -102,6 +102,19 @@ fn parse_f64(flag: &str, raw: &str) -> Result<f64, CliError> {
         .map_err(|_| CliError::Usage(format!("'{flag}' expects a number, got '{raw}'")))
 }
 
+/// Parses a rate flag, rejecting anything outside `0.0..=1.0` including `NaN`
+/// and `inf` - both of which `f64::from_str` otherwise accepts silently and
+/// would turn into a filter that keeps everything or nothing without saying why.
+fn parse_rate(flag: &str, raw: &str) -> Result<f64, CliError> {
+    let value = parse_f64(flag, raw)?;
+    if !(0.0..=1.0).contains(&value) {
+        return Err(CliError::Usage(format!(
+            "'{flag}' expects a number between 0.0 and 1.0, got '{raw}'"
+        )));
+    }
+    Ok(value)
+}
+
 fn default_seed() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -216,7 +229,7 @@ fn cmd_schema(args: &[String]) -> Result<(), CliError> {
         match args[i].as_str() {
             "--depth" => depth = parse_usize("--depth", &take_value(args, &mut i, "--depth")?)?,
             "--min-rate" => {
-                min_rate = parse_f64("--min-rate", &take_value(args, &mut i, "--min-rate")?)?
+                min_rate = parse_rate("--min-rate", &take_value(args, &mut i, "--min-rate")?)?
             }
             "--json" => json_out = true,
             other => take_positional(&mut file, other)?,

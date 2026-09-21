@@ -161,7 +161,7 @@ jsonl-peek schema [--depth N] [--min-rate R] [--json] [FILE]
 | `--top N` | stats | distinct values listed per field (default 10) |
 | `--max-errors N` | stats | broken lines shown (default 10) |
 | `--depth N` | schema | levels to descend (default 3) |
-| `--min-rate R` | schema | hide paths present in fewer than R of the records |
+| `--min-rate R` | schema | hide paths present in fewer than R of the records (`0.0..=1.0`) |
 | `--json` | stats, schema | machine-readable output |
 
 Exit status is `0` on success, `1` on a runtime error (missing file, unreadable

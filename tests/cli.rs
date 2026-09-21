@@ -290,6 +290,36 @@ fn an_unparseable_field_path_is_a_usage_error() {
 }
 
 #[test]
+fn a_min_rate_above_one_is_a_usage_error() {
+    let path = fixture_path();
+    let output = run(&["schema", "--min-rate", "1.5", path.to_str().unwrap()]);
+    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("'--min-rate' expects a number between 0.0 and 1.0, got '1.5'"));
+}
+
+#[test]
+fn a_negative_min_rate_is_a_usage_error() {
+    let path = fixture_path();
+    let output = run(&["schema", "--min-rate", "-0.1", path.to_str().unwrap()]);
+    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("'--min-rate' expects a number between 0.0 and 1.0, got '-0.1'"));
+}
+
+#[test]
+fn a_nan_min_rate_is_a_usage_error() {
+    let path = fixture_path();
+    let output = run(&["schema", "--min-rate", "NaN", path.to_str().unwrap()]);
+    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("'--min-rate' expects a number between 0.0 and 1.0, got 'NaN'"));
+}
+
+#[test]
 fn a_second_positional_argument_is_a_usage_error() {
     let path = fixture_path();
     let output = run(&["head", path.to_str().unwrap(), "extra"]);
